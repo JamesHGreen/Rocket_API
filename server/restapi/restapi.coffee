@@ -300,6 +300,29 @@ Api.addRoute 'bulk/removePrivateGroups', authRequired: true,
 				statusCode: 403
 				body: status: 'error', message: 'You do not have permission to do this'
 				
+Api.addRoute 'addUser', authRequired: true,
+	post:
+		# restivus 0.8.4 does not support alanning:roles using groups
+		#roleRequired: ['testagent', 'adminautomation']
+		action: ->
+			# user must also have create-c permission because
+			# createChannel method requires it
+			if RocketChat.authz.hasPermission(@userId, 'bulk-create-c')
+				try
+					
+					this.response.setTimeout (1000 * @userId.length)
+					#Api.testapiValidateRooms @bodyParams.rid
+					ids = []
+					Meteor.runAsUser this.userId, () =>
+						(ids[i] = Meteor.call 'addUserToRoom', incoming.username,incoming.rid) for incoming,i in @bodyParams.room
+					status: 'success', ids: ids  # need to handle error
+				catch e
+					statusCode: 400    # bad request or other errors
+					body: status: 'fail', message: e.name + ' :: ' + e.message
+			else
+				console.log '[restapi] addUserToRoom -> '.red, "User does not have 'bulk-create-c' permission"
+				statusCode: 403
+				body: status: 'error', message: 'You do not have permission to do this'				
 		
 Api.addRoute 'bulk/outgoingWebhooks', authRequired: true,
 	post:
