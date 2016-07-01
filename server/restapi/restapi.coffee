@@ -311,11 +311,10 @@ Api.addRoute 'addUser', authRequired: true,
 				try
 					
 					this.response.setTimeout (1000 * @userId.length)
-					#Api.testapiValidateRooms @bodyParams.rid
-					ids = []
+					ids=[]
 					Meteor.runAsUser this.userId, () =>
-						(ids[i] = Meteor.call 'addUserToRoom', incoming.username,incoming.rid) for incoming,i in @bodyParams.room
-					status: 'success', ids: ids  # need to handle error
+						(Meteor.call 'addUserToRoom', rid:@bodyParams.room, username:@bodyParams.username)
+					status: 'success', ids: ids.username  # need to handle error
 				catch e
 					statusCode: 400    # bad request or other errors
 					body: status: 'fail', message: e.name + ' :: ' + e.message
@@ -334,17 +333,21 @@ Api.addRoute 'bulk/outgoingWebhooks', authRequired: true,
 				try
 					
 					this.response.setTimeout (1000 * @bodyParams.name.length)
-					integration ={ userid:@userId, auth:@authToken, enabled:@enabled, name:@roomName, channel:@channel, triggerWords:@triggerWords,\
-					urls:@urls, username:@username, alias:@alias, avatar:@avatar, emoji:@emoji, token:@token,\
-					scriptEnable:@scriptEnabled, script:@script }
+					
+					# integration = [{auth:@authToken}, {enabled:@enabled}, {name:@roomName}, {channel:@channel},
+					# {triggerWords:@triggerWords}, {urls:@urls}, {username:@username}, {alias:@alias}, {avatar:@avatar}, {emoji:@emoji}, {token:@token}, 
+					# {scriptEnable:@scriptEnabled}, {script:@script}]
 					
 					ids = []
+					
 					Meteor.runAsUser this.userId, () =>
-						(ids[i] = Meteor.call 'addOutgoingIntegration', integration) for incoming,i in @bodyParams.name
+						(Meteor.call 'addOutgoingIntegration', { userid:@userid, auth:@authToken, enabled:@enabled, name:@roomName, channel:@channel,
+						triggerWords:@triggerWords, urls:@urls, username:@username, alias:@alias, avatar:@avatar, emoji:@emoji, token:@token, 
+						scriptEnable:@scriptEnabled, script:@script })
 					status: 'success', ids: ids  # need to handle error
 				catch e
 					statusCode: 400    # bad request or other errors
-					body: status: 'yep failled again', message: e.name + ' :: ' + e.message
+					body: status: 'yep failled again '+ @name, message: e.name + ' :: ' + e.message
 			else
 				console.log '[restapi] api/outgoingWebhooks -> '.red, "User does not have 'bulk-create-c' permission"
 				statusCode: 403
