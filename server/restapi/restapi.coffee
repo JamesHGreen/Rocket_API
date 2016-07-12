@@ -22,6 +22,24 @@ Api.addRoute 'privateRooms', authRequired: true,
 	get: ->
 		rooms = RocketChat.models.Rooms.findByType('p', { sort: { msgs:-1 } }).fetch()
 		status: 'success', rooms: rooms
+		
+# retrieve a list of integration
+# **Note make sure you encode all channel/private rooms  because they start with '#' === '%23' 
+# Example string ('http://your url here : 3000/api/%23testRoom/roomIntegrations',headers={'X-User-Id':'user_token','X-Auth-Token':'user_token'})
+Api.addRoute ':channel/roomIntgrations', authRequired: true,
+	get: ->
+		try
+			id = RocketChat.models.Integrations.find({"channel":decodeURIComponent(@urlParams.channel)}).fetch()
+			status: 'success', Integrations: id
+		catch e 
+			statusCode: 400    # bad request or other errors
+			body: status: 'Epic fail', message: e.name + ' :: ' + e.message
+
+# retrieve a complete list of webhook integration
+Api.addRoute 'roomIntegrations', authRequired: true,
+	get: ->
+		id = RocketChat.models.Integrations.find().fetch()
+		status: 'success', Integrations: id
 
 # join a room
 Api.addRoute 'rooms/:id/join', authRequired: true,
@@ -276,7 +294,7 @@ Api.addRoute 'bulk/createPrivateGroups', authRequired: true,
 				statusCode: 403
 				body: status: 'error', message: 'You do not have permission to do this'
 				
-Api.addRoute 'bulk/removePrivateGroups', authRequired: true,
+Api.addRoute 'removePrivateGroups', authRequired: true,
 	post:
 		# restivus 0.8.4 does not support alanning:roles using groups
 		#roleRequired: ['testagent', 'adminautomation']
@@ -287,11 +305,10 @@ Api.addRoute 'bulk/removePrivateGroups', authRequired: true,
 				try
 					
 					this.response.setTimeout (1000 * @bodyParams.name.length)
-					#Api.testapiValidateRooms @bodyParams.rooms
-					ids = []
+					
 					Meteor.runAsUser this.userId, () =>
-						(ids[i] = Meteor.call 'eraseRoom', incoming.name) for incoming,i in @bodyParams.name
-					status: 'success', ids: ids  # need to handle error
+						 (Meteor.call 'eraseRoom', @bodyParams.name)
+					status: 'success', rid : @bodyParams.name  # need to handle error
 				catch e
 					statusCode: 400    # bad request or other errors
 					body: status: 'fail', message: e.name + ' :: ' + e.message
@@ -311,10 +328,10 @@ Api.addRoute 'addUser', authRequired: true,
 				try
 					
 					this.response.setTimeout (1000 * @userId.length)
-					ids=[]
+					
 					Meteor.runAsUser this.userId, () =>
 						(Meteor.call 'addUserToRoom', rid:@bodyParams.room, username:@bodyParams.username)
-					status: 'success', ids: ids.username  # need to handle error
+					status: 'success', rid:@bodyParams.room, username:@bodyParams.username # need to handle error
 				catch e
 					statusCode: 400    # bad request or other errors
 					body: status: 'fail', message: e.name + ' :: ' + e.message
@@ -323,32 +340,60 @@ Api.addRoute 'addUser', authRequired: true,
 				statusCode: 403
 				body: status: 'error', message: 'You do not have permission to do this'				
 		
-Api.addRoute 'bulk/outgoingWebhooks', authRequired: true,
+Api.addRoute 'outgoingWebhooks', authRequired: true,
 	post:
 		#roleRequired: ['testagent', 'adminautomation']
 		action: ->
-			# user must also have create-c permission because
-			# createChannel method requires it
+			# user must also have create-c permission 
 			if RocketChat.authz.hasPermission(@userId, 'bulk-create-c')
 				try
 					
 					this.response.setTimeout (1000 * @bodyParams.name.length)
-					
-					# integration = [{auth:@authToken}, {enabled:@enabled}, {name:@roomName}, {channel:@channel},
-					# {triggerWords:@triggerWords}, {urls:@urls}, {username:@username}, {alias:@alias}, {avatar:@avatar}, {emoji:@emoji}, {token:@token}, 
-					# {scriptEnable:@scriptEnabled}, {script:@script}]
-					
-					ids = []
+					integration_id=[]
+					integration = { userid:@bodyParams.userid, auth:@bodyParams.authToken, name:@bodyParams.name, enabled:@bodyParams.enabled, name:@bodyParams.roomName, channel:@bodyParams.channel,
+					triggerWords:@bodyParams.triggerWords, urls:@bodyParams.urls, username:@bodyParams.username, alias:@bodyParams.alias, avatar:@bodyParams.avatar, emoji:@bodyParams.emoji, token:@bodyParams.token, 
+					scriptEnable:@bodyParams.scriptEnabled, script:@bodyParams.script }
 					
 					Meteor.runAsUser this.userId, () =>
-						(Meteor.call 'addOutgoingIntegration', { userid:@userid, auth:@authToken, enabled:@enabled, name:@roomName, channel:@channel,
-						triggerWords:@triggerWords, urls:@urls, username:@username, alias:@alias, avatar:@avatar, emoji:@emoji, token:@token, 
-						scriptEnable:@scriptEnabled, script:@script })
-					status: 'success', ids: ids  # need to handle error
+						(Meteor.call 'addOutgoingIntegration', integration )
+						#(integration_id[i]=meteor.call 'addOutgoingIntegration',incoming) for incoming, i in @bodyParams.Integrations
+					status: 'success', webhook : integration  # need to handle error
 				catch e
 					statusCode: 400    # bad request or other errors
-					body: status: 'yep failled again '+ @name, message: e.name + ' :: ' + e.message
+					body: status: 'yep failled again bad request '+ @bodyParams.name, message: e.name + ' :: ' + e.message
 			else
 				console.log '[restapi] api/outgoingWebhooks -> '.red, "User does not have 'bulk-create-c' permission"
 				statusCode: 403
 				body: status: 'error', message: 'You do not have permission to do this'
+
+###
+@apiParam {json} An array of intergration webhooks in the body of the POST. 'integration' is integrations name
+use API 'roomIntegrations' method to aquire a list of all webhooks to capture webhook _ids or use ':channel/roomIntgrations' to aquire 
+a list from a specfic channel or private room.
+
+@apiParamExample {json} POST Request Body example:
+  {
+    'integrationId':[ 'integrations_id1','integrations_id2']
+  }	
+###			
+Api.addRoute 'removeOutgoingWebhooks', authRequired: true,
+	post:
+		#roleRequired: ['testagent', 'adminautomation']
+		action: ->
+			# user must also have create-c permission 
+			if RocketChat.authz.hasPermission(@userId, 'bulk-create-c')
+				try
+					this.response.setTimeout (1000 * @bodyParams.integrationId.length)
+					ids=[]
+					Meteor.runAsUser this.userId, () =>
+						(ids[i]=Meteor.call 'deleteOutgoingIntegration', incoming) for incoming, i in @bodyParams.integrationId
+						
+					status: 'success', deleted : integrationId  # need to handle error
+				catch e
+					statusCode: 400    # bad request or other errors
+					body: status: 'yep failled again bad request '+ @bodyParams.integrationId, message: e.name + ' :: ' + e.message
+			else
+				console.log '[restapi] api/outgoingWebhooks -> '.red, "User does not have 'bulk-create-c' permission"
+				statusCode: 403
+				body: status: 'error', message: 'You do not have permission to do this'
+					

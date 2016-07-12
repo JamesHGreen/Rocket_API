@@ -8,8 +8,6 @@ Meteor.methods
 		not (RocketChat.authz.hasPermission @userId, 'manage-integrations', 'bot') and
 		not (RocketChat.authz.hasPermission @userId, 'manage-own-integrations', 'bot')
 			throw new Meteor.Error 'not_authorized'
-		usname=integration.username
-		chan=integration.channel
 		if integration.username.trim() is ''
 			throw new Meteor.Error 'error-invalid-username', 'Invalid username', { method: 'addOutgoingIntegration' }
 
