@@ -1,6 +1,3 @@
-isSubscribed = (_id) ->
-	return ChatSubscription.find({ rid: _id }).count() > 0
-
 katexSyntax = ->
 	if RocketChat.katex.katex_enabled()
 		return "$$KaTeX$$"   if RocketChat.katex.dollar_syntax_enabled()
@@ -28,9 +25,9 @@ Template.messageBox.helpers
 	showFormattingTips: ->
 		return RocketChat.settings.get('Message_ShowFormattingTips') and (RocketChat.Markdown or RocketChat.MarkdownCode or katexSyntax())
 	canJoin: ->
-		return !! ChatRoom.findOne { _id: @_id, t: 'c' }
+		return RocketChat.roomTypes.verifyShowJoinLink @_id
 	subscribed: ->
-		return isSubscribed(this._id)
+		return RocketChat.roomTypes.verifyCanSendMessage @_id
 	getPopupConfig: ->
 		template = Template.instance()
 		return {
@@ -82,6 +79,12 @@ Template.messageBox.helpers
 		if not Template.instance().isMessageFieldEmpty.get() or not Template.instance().showMicButton.get()
 			return 'show-send'
 
+	notSubscribedTpl: ->
+		return RocketChat.roomTypes.getNotSubscribedTpl @_id
+
+	showSandstorm: ->
+		return Meteor.settings.public.sandstorm
+
 Template.messageBox.events
 	'click .join': (event) ->
 		event.stopPropagation()
@@ -124,6 +127,13 @@ Template.messageBox.events
 	'keydown .input-message': (event) ->
 		chatMessages[@_id].keydown(@_id, event, Template.instance())
 
+	'input .input-message': (event) ->
+		chatMessages[@_id].valueChanged(@_id, event, Template.instance())
+
+	'propertychange .input-message': (event) ->
+		if event.originalEvent.propertyName is 'value'
+			chatMessages[@_id].valueChanged(@_id, event, Template.instance())
+
 	"click .editing-commands-cancel > button": (e) ->
 		chatMessages[@_id].clearEditing()
 
@@ -165,6 +175,24 @@ Template.messageBox.events
 
 		t.$('.stop-mic').addClass('hidden')
 		t.$('.mic').removeClass('hidden')
+
+	'click .sandstorm-offer': (e, t) ->
+		roomId = @_id
+		RocketChat.Sandstorm.request "uiView", (err, data) =>
+			if err or !data.token
+				console.error err
+				return
+			Meteor.call "sandstormClaimRequest", data.token, data.descriptor, (err, viewInfo) =>
+				if err
+					console.error err
+					return
+
+				Meteor.call "sendMessage", {
+					_id: Random.id()
+					rid: roomId
+					msg: ""
+					urls: [{ url: "grain://sandstorm", sandstormViewInfo: viewInfo }]
+				}
 
 Template.messageBox.onCreated ->
 	@isMessageFieldEmpty = new ReactiveVar true
