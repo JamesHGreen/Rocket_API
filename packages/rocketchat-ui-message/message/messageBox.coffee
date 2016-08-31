@@ -26,6 +26,8 @@ Template.messageBox.helpers
 		return RocketChat.settings.get('Message_ShowFormattingTips') and (RocketChat.Markdown or RocketChat.MarkdownCode or katexSyntax())
 	canJoin: ->
 		return RocketChat.roomTypes.verifyShowJoinLink @_id
+	joinCodeRequired: ->
+		return Session.get('roomData' + this._id)?.joinCodeRequired
 	subscribed: ->
 		return RocketChat.roomTypes.verifyCanSendMessage @_id
 	getPopupConfig: ->
@@ -56,28 +58,22 @@ Template.messageBox.helpers
 			selfTyping: MsgTyping.selfTyping.get()
 			users: usernames.join " #{t 'and'} "
 		}
+
 	fileUploadAllowedMediaTypes: ->
 		return RocketChat.settings.get('FileUpload_MediaTypeWhiteList')
 
 	showMic: ->
-		if not Template.instance().isMessageFieldEmpty.get()
-			return
-
-		if Template.instance().showMicButton.get()
-			return 'show-mic'
+		return Template.instance().showMicButton.get()
 
 	showVRec: ->
-		if not Template.instance().isMessageFieldEmpty.get()
-			return 'hide-vrec'
-
-		if Template.instance().showVideoRec.get()
-			return ''
-		else
-			return 'hide-vrec'
+		return Template.instance().showVideoRec.get()
 
 	showSend: ->
-		if not Template.instance().isMessageFieldEmpty.get() or not Template.instance().showMicButton.get()
+		if not Template.instance().isMessageFieldEmpty.get()
 			return 'show-send'
+
+	showLocation: ->
+		return RocketChat.Geolocation.get() isnt false
 
 	notSubscribedTpl: ->
 		return RocketChat.roomTypes.getNotSubscribedTpl @_id
@@ -85,11 +81,20 @@ Template.messageBox.helpers
 	showSandstorm: ->
 		return Meteor.settings.public.sandstorm
 
+
 Template.messageBox.events
 	'click .join': (event) ->
 		event.stopPropagation()
 		event.preventDefault()
-		Meteor.call 'joinRoom', @_id
+		Meteor.call 'joinRoom', @_id, Template.instance().$('[name=joinCode]').val(), (err) ->
+			if err?
+				toastr.error t(err.reason)
+
+			if RocketChat.authz.hasAllPermission('preview-c-room') is false and RoomHistoryManager.getRoom(@_id).loaded is 0
+				RoomManager.getOpenedRoomByRid(@_id).streamActive = false
+				RoomManager.getOpenedRoomByRid(@_id).ready = false
+				RoomHistoryManager.getRoom(@_id).loaded = undefined
+				RoomManager.computation.invalidate()
 
 	'focus .input-message': (event) ->
 		KonchatNotification.removeRoomNotification @_id
@@ -154,6 +159,40 @@ Template.messageBox.events
 
 		fileUpload filesToUpload
 
+	'click .message-form .icon-location.location': (event, instance) ->
+		roomId = @_id
+
+		position = RocketChat.Geolocation.get()
+
+		latitude = position.coords.latitude
+		longitude = position.coords.longitude
+
+		text = """
+			<div class="location-preview">
+				<img style="height: 250px; width: 250px;" src="https://maps.googleapis.com/maps/api/staticmap?zoom=14&size=250x250&markers=color:gray%7Clabel:%7C#{latitude},#{longitude}&key=#{RocketChat.settings.get('MapView_GMapsAPIKey')}" />
+			</div>
+		"""
+
+		swal
+			title: t('Share_Location_Title')
+			text: text
+			showCancelButton: true
+			closeOnConfirm: true
+			closeOnCancel: true
+			html: true
+		, (isConfirm) ->
+			if isConfirm isnt true
+				return
+
+			Meteor.call "sendMessage",
+				_id: Random.id()
+				rid: roomId
+				msg: ""
+				location:
+					type: 'Point'
+					coordinates: [ longitude, latitude ]
+
+
 	'click .message-form .mic': (e, t) ->
 		AudioRecorder.start ->
 			t.$('.stop-mic').removeClass('hidden')
@@ -200,7 +239,7 @@ Template.messageBox.onCreated ->
 	@showVideoRec = new ReactiveVar false
 
 	@autorun =>
-		videoRegex = /video\/webm/i
+		videoRegex = /video\/webm|video\/\*/i
 		videoEnabled = !RocketChat.settings.get("FileUpload_MediaTypeWhiteList") || RocketChat.settings.get("FileUpload_MediaTypeWhiteList").match(videoRegex)
 		if RocketChat.settings.get('Message_VideoRecorderEnabled') and (navigator.getUserMedia? or navigator.webkitGetUserMedia?) and videoEnabled and RocketChat.settings.get('FileUpload_Enabled')
 			@showVideoRec.set true
@@ -213,3 +252,25 @@ Template.messageBox.onCreated ->
 			@showMicButton.set true
 		else
 			@showMicButton.set false
+
+
+Meteor.startup ->
+	RocketChat.Geolocation = new ReactiveVar false
+
+	Tracker.autorun ->
+		if RocketChat.settings.get('MapView_Enabled') is true and RocketChat.settings.get('MapView_GMapsAPIKey')?.length and navigator.geolocation?.getCurrentPosition?
+			success = (position) =>
+				RocketChat.Geolocation.set position
+
+			error = (error) =>
+				console.log 'Error getting your geolocation', error
+				RocketChat.Geolocation.set false
+
+			options =
+				enableHighAccuracy: true
+				maximumAge: 0
+				timeout: 10000
+
+			navigator.geolocation.watchPosition success, error
+		else
+			RocketChat.Geolocation.set false

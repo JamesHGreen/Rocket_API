@@ -34,7 +34,7 @@ Package.onUse(function(api) {
 	api.use('rocketchat:logger');
 
 	api.use('templating', 'client');
-	api.use('kadira:flow-router', 'client');
+	api.use('kadira:flow-router');
 
 	api.addFiles('lib/core.coffee');
 
@@ -48,6 +48,7 @@ Package.onUse(function(api) {
 	api.addFiles('lib/fileUploadRestrictions.js');
 	api.addFiles('lib/placeholders.js');
 	api.addFiles('lib/promises.coffee');
+	api.addFiles('lib/roomTypesCommon.coffee');
 	api.addFiles('lib/slashCommand.coffee');
 	api.addFiles('lib/Message.coffee');
 	api.addFiles('lib/MessageTypes.coffee');
@@ -55,13 +56,21 @@ Package.onUse(function(api) {
 	api.addFiles('server/lib/RateLimiter.coffee', 'server');
 
 	// SERVER FUNCTIONS
+	api.addFiles('server/functions/addUserToDefaultChannels.js', 'server');
+	api.addFiles('server/functions/addUserToRoom.js', 'server');
+	api.addFiles('server/functions/archiveRoom.js', 'server');
 	api.addFiles('server/functions/checkUsernameAvailability.coffee', 'server');
 	api.addFiles('server/functions/checkEmailAvailability.js', 'server');
+	api.addFiles('server/functions/createRoom.js', 'server');
+	api.addFiles('server/functions/deleteMessage.js', 'server');
 	api.addFiles('server/functions/deleteUser.js', 'server');
+	api.addFiles('server/functions/removeUserFromRoom.js', 'server');
 	api.addFiles('server/functions/sendMessage.coffee', 'server');
 	api.addFiles('server/functions/settings.coffee', 'server');
+	api.addFiles('server/functions/setUserAvatar.js', 'server');
 	api.addFiles('server/functions/setUsername.coffee', 'server');
 	api.addFiles('server/functions/setEmail.js', 'server');
+	api.addFiles('server/functions/updateMessage.js', 'server');
 	api.addFiles('server/functions/Notifications.coffee', 'server');
 
 	// SERVER LIB
@@ -87,11 +96,18 @@ Package.onUse(function(api) {
 
 	// SERVER METHODS
 	api.addFiles('server/methods/addOAuthService.coffee', 'server');
+	api.addFiles('server/methods/addUserToRoom.coffee', 'server');
+	api.addFiles('server/methods/archiveRoom.coffee', 'server');
 	api.addFiles('server/methods/checkRegistrationSecretURL.coffee', 'server');
+	api.addFiles('server/methods/createChannel.coffee', 'server');
+	api.addFiles('server/methods/createPrivateGroup.coffee', 'server');
+	api.addFiles('server/methods/deleteMessage.coffee', 'server');
 	api.addFiles('server/methods/deleteUserOwnAccount.js', 'server');
 	api.addFiles('server/methods/getRoomRoles.js', 'server');
 	api.addFiles('server/methods/getUserRoles.js', 'server');
+	api.addFiles('server/methods/joinRoom.coffee', 'server');
 	api.addFiles('server/methods/joinDefaultChannels.coffee', 'server');
+	api.addFiles('server/methods/leaveRoom.coffee', 'server');
 	api.addFiles('server/methods/removeOAuthService.coffee', 'server');
 	api.addFiles('server/methods/robotMethods.coffee', 'server');
 	api.addFiles('server/methods/saveSetting.coffee', 'server');
@@ -104,6 +120,8 @@ Package.onUse(function(api) {
 	api.addFiles('server/methods/insertOrUpdateUser.coffee', 'server');
 	api.addFiles('server/methods/setEmail.js', 'server');
 	api.addFiles('server/methods/restartServer.coffee', 'server');
+	api.addFiles('server/methods/unarchiveRoom.coffee', 'server');
+	api.addFiles('server/methods/updateMessage.coffee', 'server');
 	api.addFiles('server/methods/filterBadWords.js', ['server']);
 	api.addFiles('server/methods/filterATAllTag.js', 'server');
 
@@ -133,10 +151,13 @@ Package.onUse(function(api) {
 	api.addFiles('client/MessageAction.coffee', 'client');
 
 	api.addFiles('client/defaultTabBars.js', 'client');
+	api.addFiles('client/CustomTranslations.js', 'client');
 
 	// CLIENT MODELS
 	api.addFiles('client/models/_Base.coffee', 'client');
 	api.addFiles('client/models/Uploads.coffee', 'client');
+
+	api.addFiles('startup/defaultRoomTypes.coffee');
 
 	// VERSION
 	api.addFiles('rocketchat.info');
