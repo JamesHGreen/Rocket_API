@@ -41,10 +41,7 @@ Meteor.methods
 				ts: now
 
 		# Make user I have a subcription to this room
-		RocketChat.models.Subscriptions.upsert
-			rid: rid
-			$and: [{'u._id': me._id}] # work around to solve problems with upsert and dot
-		,
+		upsertSubscription =
 			$set:
 				ts: now
 				ls: now
@@ -57,6 +54,14 @@ Meteor.methods
 				u:
 					_id: me._id
 					username: me.username
+		if to.active is false
+			upsertSubscription.$set.archived = true
+
+		RocketChat.models.Subscriptions.upsert
+			rid: rid
+			$and: [{'u._id': me._id}] # work around to solve problems with upsert and dot
+		,
+			upsertSubscription
 
 		# Make user the target user has a subcription to this room
 		RocketChat.models.Subscriptions.upsert
@@ -76,3 +81,9 @@ Meteor.methods
 		return {
 			rid: rid
 		}
+
+DDPRateLimiter.addRule
+	type: 'method'
+	name: 'createDirectMessage'
+	connectionId: -> return true
+, 10, 60000
